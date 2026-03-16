@@ -181,4 +181,25 @@ public class ResumeController {
             return ResponseEntity.badRequest().body(new MessageResponse("更新失败：" + e.getMessage()));
         }
     }
+    
+    /**
+     * 获取简历详情（根据 ID）
+     */
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('CANDIDATE', 'EMPLOYER')")
+    public ResponseEntity<?> getResumeDetail(@PathVariable Long id) {
+        try {
+            Resume resume = resumeService.getById(id);
+            if (resume == null) {
+                return ResponseEntity.badRequest().body(new MessageResponse("简历不存在"));
+            }
+            
+            // TODO: 这里可以添加权限验证，确保只有有权限的人才能查看
+            
+            return ResponseEntity.ok(resume);
+        } catch (Exception e) {
+            logger.error("获取简历详情失败", e);
+            return ResponseEntity.badRequest().body(new MessageResponse("获取失败：" + e.getMessage()));
+        }
+    }
 }

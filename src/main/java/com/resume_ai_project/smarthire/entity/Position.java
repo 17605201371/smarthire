@@ -80,4 +80,10 @@ public class Position {
      */
     @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
+    
+    /**
+     * 收到简历数量（非数据库字段，用于统计）
+     */
+    @TableField(exist = false)
+    private Long resumeCount = 0L;
 }

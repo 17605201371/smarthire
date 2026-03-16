@@ -198,9 +198,34 @@ public class ResumeService {
                 .orderByDesc(Resume::getCreateTime);
         return resumeMapper.selectPage(page, wrapper);
     }
+    
+    /**
+     * 分页查询简历（根据简历 ID 列表）
+     */
+    public Page<Resume> findResumesByIds(List<Long> resumeIds, int pageNum, int pageSize) {
+        Page<Resume> page = new Page<>(pageNum, pageSize);
+        LambdaQueryWrapper<Resume> wrapper = new LambdaQueryWrapper<>();
+        wrapper.in(Resume::getId, resumeIds)
+                .orderByDesc(Resume::getCreateTime);
+        return resumeMapper.selectPage(page, wrapper);
+    }
 
     public Resume getById(Long id) {
         return resumeMapper.selectById(id);
+    }
+
+    /**
+     * 根据 ID 获取简历（供 Controller 调用）
+     */
+    public Resume getResumeById(Long id) {
+        return getById(id);
+    }
+
+    /**
+     * 获取所有简历
+     */
+    public List<Resume> findAll() {
+        return resumeMapper.selectList(null);
     }
 
     @Transactional

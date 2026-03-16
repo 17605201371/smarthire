@@ -5,6 +5,7 @@ import com.resume_ai_project.smarthire.dto.MessageResponse;
 import com.resume_ai_project.smarthire.entity.Position;
 import com.resume_ai_project.smarthire.entity.User;
 import com.resume_ai_project.smarthire.security.UserDetailsImpl;
+import com.resume_ai_project.smarthire.service.ApplicationService;
 import com.resume_ai_project.smarthire.service.PositionService;
 import com.resume_ai_project.smarthire.service.UserService;
 import org.slf4j.Logger;
@@ -16,6 +17,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -29,6 +31,8 @@ public class PositionController {
 
     @Autowired
     private PositionService positionService;
+    @Autowired
+    private ApplicationService applicationService;
 
     @Autowired
     private UserService userService;
@@ -161,6 +165,10 @@ public class PositionController {
         try {
             logger.info("获取企业用户 {} 的职位列表", userDetails.getId());
             Page<Position> page = positionService.findByEmployer(userDetails.getId(), pageNum, pageSize);
+            
+            // 填充简历数量
+            positionService.fillResumeCount(page.getRecords());
+            
             logger.info("获取成功，共 {} 条记录", page.getTotal());
             return ResponseEntity.ok(page);
         } catch (Exception e) {
@@ -210,6 +218,67 @@ public class PositionController {
         } catch (Exception e) {
             logger.error("搜索职位失败", e);
             throw new RuntimeException("搜索失败：" + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 获取企业统计信息
+     */
+    @GetMapping("/stats")
+    @PreAuthorize("hasRole('EMPLOYER')")
+    public ResponseEntity<?> getEmployerStats(
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        try {
+            Long employerId = userDetails.getId();
+            
+            // 统计在招职位数量（只统计 PUBLISHED 状态）
+            long positionCount = positionService.countPublishedByEmployer(employerId);
+            
+            // 获取该企业发布的所有职位 ID
+            List<Position> positions = positionService.findByEmployerId(employerId);
+            
+            List<Long> positionIds = positions.stream()
+                .map(Position::getId)
+                .toList();
+            
+            // 统计收到的简历数量、待面试、已录用数量
+            long resumeCount = 0;
+            long interviewCount = 0;
+            long hiredCount = 0;
+            
+            if (!positionIds.isEmpty()) {
+                // 从 Application 表中统计
+                com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.resume_ai_project.smarthire.entity.Application> wrapper = 
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.resume_ai_project.smarthire.entity.Application>()
+                        .in(com.resume_ai_project.smarthire.entity.Application::getPositionId, positionIds);
+                
+                // 统计总数
+                resumeCount = applicationService.count(wrapper);
+                
+                // 统计面试状态
+                interviewCount = applicationService.count(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.resume_ai_project.smarthire.entity.Application>()
+                        .in(com.resume_ai_project.smarthire.entity.Application::getPositionId, positionIds)
+                        .eq(com.resume_ai_project.smarthire.entity.Application::getStatus, "INTERVIEW")
+                );
+                
+                // 统计录用状态
+                hiredCount = applicationService.count(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.resume_ai_project.smarthire.entity.Application>()
+                        .in(com.resume_ai_project.smarthire.entity.Application::getPositionId, positionIds)
+                        .eq(com.resume_ai_project.smarthire.entity.Application::getStatus, "HIRED")
+                );
+            }
+            
+            return ResponseEntity.ok(Map.of(
+                    "positionCount", positionCount,
+                    "resumeCount", resumeCount,
+                    "interviewCount", interviewCount,
+                    "hiredCount", hiredCount
+            ));
+        } catch (Exception e) {
+            logger.error("获取统计信息失败", e);
+            return ResponseEntity.badRequest().body(new MessageResponse("获取统计失败：" + e.getMessage()));
         }
     }
 }
